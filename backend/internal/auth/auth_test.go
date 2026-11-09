@@ -18,8 +18,6 @@ func TestPassword(t *testing.T) {
 	}
 }
 
-// Hash di bawah disalin dari db/init/001_init.sql. Gagal = password demo di
-// README/docs tidak lagi cocok dengan seed.
 func TestSeedPasswords(t *testing.T) {
 	cases := []struct {
 		username string

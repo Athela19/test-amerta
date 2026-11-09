@@ -31,31 +31,31 @@ Dokumentasi model dan alur:
 .
 ├── docker-compose.yml
 ├── docs/
-│   ├── erd.md                  # model data
-│   ├── use_case.png            # diagram use case
-│   └── activity.png            # diagram activity
+│   ├── erd.md
+│   ├── use_case.png
+│   └── activity.png
 ├── db/
-│   └── init/001_init.sql       # schema + seed
+│   └── init/001_init.sql
 ├── backend/
 │   ├── cmd/api/main.go
 │   ├── internal/
-│   │   ├── auth/               # bcrypt, JWT, refresh token
+│   │   ├── auth/
 │   │   ├── config/
 │   │   ├── database/
-│   │   ├── httpapi/            # router, middleware, handler
-│   │   └── store/              # query users, refresh_tokens, departments, employees
-│   ├── .env                    # dipakai Compose; host database = postgres
-│   ├── .env.example            # referensi nilai untuk shell lokal (tidak di-load otomatis)
+│   │   ├── httpapi/
+│   │   └── store/
+│   ├── .env
+│   ├── .env.example
 │   └── Dockerfile
 └── frontend/
-    ├── public/                 # letakkan logo resmi sebagai logo.png
+    ├── public/
     ├── src/
-    │   ├── components/         # AppLayout, BrandLogo, Modal
-    │   ├── pages/              # LoginPage, DepartmentsPage, UsersPage
+    │   ├── components/
+    │   ├── pages/
     │   ├── api.ts
     │   ├── App.tsx
     │   └── styles.css
-    ├── nginx.conf              # SPA + proxy /api (hanya image Docker)
+    ├── nginx.conf
     └── Dockerfile
 ```
 
@@ -101,8 +101,8 @@ Buka:
 Hentikan:
 
 ```bash
-docker compose down          # container berhenti, data tetap
-docker compose down -v       # container dan volume database dihapus
+docker compose down
+docker compose down -v
 ```
 
 Schema serta akun demo hanya dijalankan saat volume `pgdata` pertama kali
