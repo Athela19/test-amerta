@@ -28,10 +28,16 @@ type roleInput struct {
 }
 
 func (s *server) listUsers(w http.ResponseWriter, r *http.Request) {
+	q, msg := readPage(r)
+	if msg != "" {
+		writeError(w, http.StatusBadRequest, msg)
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	users, err := s.store.Users(ctx)
+	users, total, err := s.store.Users(ctx, q.Query, q.Limit, q.Offset)
 	if err != nil {
 		s.logger.Error("list users", "error", err)
 		writeError(w, http.StatusInternalServerError, "Gagal memuat pengguna.")
@@ -42,7 +48,12 @@ func (s *server) listUsers(w http.ResponseWriter, r *http.Request) {
 	for _, user := range users {
 		list = append(list, toView(user))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"users": list})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"users": list,
+		"total": total,
+		"page":  q.Page,
+		"limit": q.Limit,
+	})
 }
 
 func (s *server) createUser(w http.ResponseWriter, r *http.Request) {

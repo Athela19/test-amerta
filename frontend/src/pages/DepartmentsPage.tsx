@@ -1,13 +1,18 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { addDept, listDepts, removeDept, updateDept } from '../api'
+import { addDept, listDepts, pageSize, removeDept, updateDept } from '../api'
 import type { Department } from '../api'
 import Modal from '../components/Modal'
+import Pager from '../components/Pager'
 
 export default function DepartmentsPage() {
   const [rows, setRows] = useState<Department[]>([])
   const [q, setQ] = useState('')
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [limit, setLimit] = useState(pageSize)
+  const [reload, setReload] = useState(0)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -19,21 +24,35 @@ export default function DepartmentsPage() {
   const [name, setName] = useState('')
   const [formErr, setFormErr] = useState<string | null>(null)
 
-  async function load() {
-    setLoading(true)
-    setError(null)
-    try {
-      setRows(await listDepts())
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Gagal memuat departemen.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   useEffect(() => {
-    void load()
-  }, [])
+    let cancelled = false
+
+    async function run() {
+      setLoading(true)
+      setError(null)
+      setMenu(null)
+      try {
+        const res = await listDepts(search, page, pageSize)
+        if (cancelled) return
+        if (res.items.length === 0 && page > 1) {
+          setPage(Math.max(1, Math.ceil(res.total / res.limit)))
+          return
+        }
+        setRows(res.items)
+        setTotal(res.total)
+        setLimit(res.limit)
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Gagal memuat departemen.')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    void run()
+    return () => {
+      cancelled = true
+    }
+  }, [search, page, reload])
 
   useEffect(() => {
     if (menu === null) return
@@ -41,17 +60,6 @@ export default function DepartmentsPage() {
     window.addEventListener('click', close)
     return () => window.removeEventListener('click', close)
   }, [menu])
-
-  const filtered = (() => {
-    const key = search.trim().toLowerCase()
-    if (!key) return rows
-    return rows.filter(
-      (d) =>
-        d.name.toLowerCase().includes(key) ||
-        String(d.id).includes(key) ||
-        d.employees.some((e) => e.name.toLowerCase().includes(key)),
-    )
-  })()
 
   function openNew() {
     setName('')
@@ -85,7 +93,7 @@ export default function DepartmentsPage() {
         setOk('Departemen berhasil ditambahkan.')
       }
       setEdit(null)
-      await load()
+      setReload((n) => n + 1)
     } catch (err) {
       setFormErr(err instanceof Error ? err.message : 'Gagal menyimpan departemen.')
     } finally {
@@ -100,7 +108,7 @@ export default function DepartmentsPage() {
       await removeDept(del.id)
       setOk(`Departemen ${del.name} berhasil dihapus.`)
       setDel(null)
-      await load()
+      setReload((n) => n + 1)
     } catch (err) {
       setDel(null)
       setOk(err instanceof Error ? err.message : 'Gagal menghapus departemen.')
@@ -126,7 +134,8 @@ export default function DepartmentsPage() {
           className="toolbar"
           onSubmit={(e) => {
             e.preventDefault()
-            setSearch(q)
+            setPage(1)
+            setSearch(q.trim())
           }}
         >
           <div className="search-field">
@@ -148,6 +157,7 @@ export default function DepartmentsPage() {
               onClick={() => {
                 setQ('')
                 setSearch('')
+                setPage(1)
               }}
             >
               Reset
@@ -158,7 +168,7 @@ export default function DepartmentsPage() {
         {error && (
           <div className="alert" role="alert">
             {error}
-            <button className="ghost" type="button" onClick={() => void load()}>
+            <button className="ghost" type="button" onClick={() => setReload((n) => n + 1)}>
               Coba lagi
             </button>
           </div>
@@ -183,14 +193,14 @@ export default function DepartmentsPage() {
                     Memuat departemen...
                   </td>
                 </tr>
-              ) : filtered.length === 0 ? (
+              ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="table-empty">
                     {search ? 'Tidak ada departemen yang cocok.' : 'Belum ada departemen.'}
                   </td>
                 </tr>
               ) : (
-                filtered.map((d) => (
+                rows.map((d) => (
                   <tr key={d.id}>
                     <td>{d.id}</td>
                     <td>
@@ -247,6 +257,9 @@ export default function DepartmentsPage() {
             </tbody>
           </table>
         </div>
+        {total > 0 && (
+          <Pager page={page} limit={limit} total={total} disabled={loading} onPage={setPage} />
+        )}
       </section>
 
       {edit && (

@@ -82,9 +82,29 @@ export async function signOut(): Promise<void> {
   await request<void>('/auth/logout', { method: 'POST' }, false)
 }
 
-export async function listUsers(): Promise<User[]> {
-  const { users } = await request<{ users: User[] }>('/users')
-  return users
+export const pageSize = 10
+
+export type Page<T> = {
+  items: T[]
+  total: number
+  page: number
+  limit: number
+}
+
+function pagePath(path: string, query: string, page: number, limit: number) {
+  const params = new URLSearchParams({
+    q: query,
+    page: String(page),
+    limit: String(limit),
+  })
+  return `${path}?${params}`
+}
+
+export async function listUsers(query = '', page = 1, limit = pageSize): Promise<Page<User>> {
+  const body = await request<{ users: User[]; total: number; page: number; limit: number }>(
+    pagePath('/users', query, page, limit),
+  )
+  return { items: body.users, total: body.total, page: body.page, limit: body.limit }
 }
 
 export async function addUser(input: NewUser): Promise<User> {
@@ -119,9 +139,18 @@ export type Department = {
   employees: Employee[]
 }
 
-export async function listDepts(): Promise<Department[]> {
-  const { departments } = await request<{ departments: Department[] }>('/departments')
-  return departments
+export async function listDepts(
+  query = '',
+  page = 1,
+  limit = pageSize,
+): Promise<Page<Department>> {
+  const body = await request<{
+    departments: Department[]
+    total: number
+    page: number
+    limit: number
+  }>(pagePath('/departments', query, page, limit))
+  return { items: body.departments, total: body.total, page: body.page, limit: body.limit }
 }
 
 export async function addDept(name: string): Promise<Department> {

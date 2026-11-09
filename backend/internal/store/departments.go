@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -21,16 +23,37 @@ type Department struct {
 	Employees     []Employee
 }
 
-func (s *Store) Departments(ctx context.Context) ([]Department, error) {
+const deptMatch = `
+	$1 = ''
+	OR position($1 in lower(d.name)) > 0
+	OR position($1 in d.id::text) > 0
+	OR EXISTS (
+		SELECT 1 FROM employees em
+		WHERE em.department_id = d.id
+		  AND position($1 in lower(em.name)) > 0
+	)`
+
+func (s *Store) Departments(ctx context.Context, query string, limit, offset int) ([]Department, int, error) {
+	var total int
+	err := s.pool.QueryRow(ctx, `
+		SELECT COUNT(*)::int
+		FROM departments d
+		WHERE `+deptMatch, query).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
 	rows, err := s.pool.Query(ctx, `
 		SELECT d.id, d.name, COUNT(e.id)::int
 		FROM departments d
 		LEFT JOIN employees e ON e.department_id = d.id
+		WHERE `+deptMatch+`
 		GROUP BY d.id
 		ORDER BY d.id
-	`)
+		LIMIT $2 OFFSET $3
+	`, query, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -39,23 +62,33 @@ func (s *Store) Departments(ctx context.Context) ([]Department, error) {
 	for rows.Next() {
 		var d Department
 		if err := rows.Scan(&d.ID, &d.Name, &d.EmployeeCount); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		d.Employees = []Employee{}
 		index[d.ID] = len(depts)
 		depts = append(depts, d)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, 0, err
+	}
+	if len(depts) == 0 {
+		return depts, total, nil
 	}
 
+	args := make([]any, len(depts))
+	holders := make([]string, len(depts))
+	for i, d := range depts {
+		args[i] = d.ID
+		holders[i] = fmt.Sprintf("$%d", i+1)
+	}
 	emps, err := s.pool.Query(ctx, `
 		SELECT id, name, department_id
 		FROM employees
+		WHERE department_id IN (`+strings.Join(holders, ",")+`)
 		ORDER BY id
-	`)
+	`, args...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer emps.Close()
 
@@ -63,13 +96,13 @@ func (s *Store) Departments(ctx context.Context) ([]Department, error) {
 		var e Employee
 		var deptID int64
 		if err := emps.Scan(&e.ID, &e.Name, &deptID); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		if i, ok := index[deptID]; ok {
 			depts[i].Employees = append(depts[i].Employees, e)
 		}
 	}
-	return depts, emps.Err()
+	return depts, total, emps.Err()
 }
 
 func (s *Store) CreateDepartment(ctx context.Context, name string) (Department, error) {

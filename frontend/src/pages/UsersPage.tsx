@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Navigate, useOutletContext } from 'react-router-dom'
-import { addUser, listUsers, removeUser, updateRole } from '../api'
+import { addUser, listUsers, pageSize, removeUser, updateRole } from '../api'
 import type { Role, User } from '../api'
 import Modal from '../components/Modal'
+import Pager from '../components/Pager'
 
 type Ctx = { user: User }
 
@@ -12,6 +13,10 @@ export default function UsersPage() {
   const [rows, setRows] = useState<User[]>([])
   const [q, setQ] = useState('')
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [limit, setLimit] = useState(pageSize)
+  const [reload, setReload] = useState(0)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -24,21 +29,36 @@ export default function UsersPage() {
   const [role, setRole] = useState<Role>('user')
   const [formErr, setFormErr] = useState<string | null>(null)
 
-  async function load() {
-    setLoading(true)
-    setError(null)
-    try {
-      setRows(await listUsers())
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Gagal memuat pengguna.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   useEffect(() => {
-    if (me.role === 'admin') void load()
-  }, [me.role])
+    if (me.role !== 'admin') return
+    let cancelled = false
+
+    async function run() {
+      setLoading(true)
+      setError(null)
+      setMenu(null)
+      try {
+        const res = await listUsers(search, page, pageSize)
+        if (cancelled) return
+        if (res.items.length === 0 && page > 1) {
+          setPage(Math.max(1, Math.ceil(res.total / res.limit)))
+          return
+        }
+        setRows(res.items)
+        setTotal(res.total)
+        setLimit(res.limit)
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Gagal memuat pengguna.')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    void run()
+    return () => {
+      cancelled = true
+    }
+  }, [me.role, search, page, reload])
 
   useEffect(() => {
     if (menu === null) return
@@ -50,17 +70,6 @@ export default function UsersPage() {
   if (me.role !== 'admin') {
     return <Navigate to="/departments" replace />
   }
-
-  const filtered = (() => {
-    const key = search.trim().toLowerCase()
-    if (!key) return rows
-    return rows.filter(
-      (u) =>
-        u.username.toLowerCase().includes(key) ||
-        u.role.includes(key) ||
-        String(u.id).includes(key),
-    )
-  })()
 
   function openNew() {
     setUsername('')
@@ -90,7 +99,7 @@ export default function UsersPage() {
         setOk('Pengguna berhasil ditambahkan.')
       }
       setEdit(null)
-      await load()
+      setReload((n) => n + 1)
     } catch (err) {
       setFormErr(err instanceof Error ? err.message : 'Gagal menyimpan pengguna.')
     } finally {
@@ -105,7 +114,7 @@ export default function UsersPage() {
       await removeUser(del.id)
       setOk(`Pengguna ${del.username} berhasil dihapus.`)
       setDel(null)
-      await load()
+      setReload((n) => n + 1)
     } catch (err) {
       setDel(null)
       setOk(err instanceof Error ? err.message : 'Gagal menghapus pengguna.')
@@ -131,7 +140,8 @@ export default function UsersPage() {
           className="toolbar"
           onSubmit={(e) => {
             e.preventDefault()
-            setSearch(q)
+            setPage(1)
+            setSearch(q.trim())
           }}
         >
           <div className="search-field">
@@ -153,6 +163,7 @@ export default function UsersPage() {
               onClick={() => {
                 setQ('')
                 setSearch('')
+                setPage(1)
               }}
             >
               Reset
@@ -163,7 +174,7 @@ export default function UsersPage() {
         {error && (
           <div className="alert" role="alert">
             {error}
-            <button className="ghost" type="button" onClick={() => void load()}>
+            <button className="ghost" type="button" onClick={() => setReload((n) => n + 1)}>
               Coba lagi
             </button>
           </div>
@@ -188,14 +199,14 @@ export default function UsersPage() {
                     Memuat pengguna...
                   </td>
                 </tr>
-              ) : filtered.length === 0 ? (
+              ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="table-empty">
                     {search ? 'Tidak ada pengguna yang cocok.' : 'Belum ada pengguna.'}
                   </td>
                 </tr>
               ) : (
-                filtered.map((u) => {
+                rows.map((u) => {
                   const self = u.id === me.id
                   return (
                     <tr key={u.id}>
@@ -251,6 +262,9 @@ export default function UsersPage() {
             </tbody>
           </table>
         </div>
+        {total > 0 && (
+          <Pager page={page} limit={limit} total={total} disabled={loading} onPage={setPage} />
+        )}
       </section>
 
       {edit && (

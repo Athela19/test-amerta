@@ -482,6 +482,30 @@ select:focus {
   text-align: center !important;
 }
 
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 20px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.pager p {
+  margin: 0;
+}
+
+.pager-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pager-actions .secondary {
+  height: 36px;
+}
+
 .link-btn {
   height: auto;
   padding: 0;
@@ -736,6 +760,15 @@ select:focus {
 
   .search-field {
     flex-direction: column;
+  }
+
+  .pager {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pager-actions {
+    justify-content: space-between;
   }
 
   .modal-actions {

@@ -236,11 +236,11 @@ langsung berlaku.
 | POST | `/api/auth/refresh` | cookie refresh | Rotasi refresh token, set cookie baru |
 | POST | `/api/auth/logout` | publik | Cabut refresh jika ada, hapus cookie |
 | GET | `/api/auth/me` | cookie access (JWT) | Profil user yang sedang login |
-| GET | `/api/users` | admin | Daftar pengguna |
+| GET | `/api/users` | admin | Daftar pengguna. Query `q`, `page` (default 1), `limit` (default 10, maks. 100) |
 | POST | `/api/users` | admin | Tambah pengguna |
 | PATCH | `/api/users/{id}` | admin | Ubah role pengguna |
 | DELETE | `/api/users/{id}` | admin | Hapus pengguna |
-| GET | `/api/departments` | cookie access (JWT) | Daftar departemen beserta karyawannya |
+| GET | `/api/departments` | cookie access (JWT) | Daftar departemen beserta karyawannya. Query `q`, `page`, dan `limit` sama seperti pengguna |
 | POST | `/api/departments` | cookie access (JWT) | Tambah departemen |
 | PATCH | `/api/departments/{id}` | cookie access (JWT) | Ubah nama departemen |
 | DELETE | `/api/departments/{id}` | cookie access (JWT) | Hapus departemen (gagal jika masih ada karyawan) |
@@ -248,6 +248,10 @@ langsung berlaku.
 
 Kolom Auth “admin” berarti cookie access valid **dan** `users.role = 'admin'`.
 Cookie access adalah JWT di cookie HttpOnly, bukan header `Authorization`.
+
+`q` mencari substring tanpa membedakan huruf besar/kecil. Pada pengguna,
+cocokannya username, peran, atau id. Pada departemen, cocokannya nama, id, atau
+nama karyawan. Respons daftar menyertakan `total`, `page`, dan `limit`.
 
 Contoh dengan `curl` (API di port 8080):
 
@@ -259,14 +263,14 @@ curl -i -c cookies.txt \
 
 curl -b cookies.txt http://localhost:8080/api/auth/me
 
-curl -b cookies.txt http://localhost:8080/api/users
+curl -b cookies.txt "http://localhost:8080/api/users?q=admin&page=1&limit=10"
 
 curl -i -b cookies.txt \
   -X POST http://localhost:8080/api/users \
   -H "Content-Type: application/json" \
   -d '{"username":"operator","password":"operator123","role":"user"}'
 
-curl -b cookies.txt http://localhost:8080/api/departments
+curl -b cookies.txt "http://localhost:8080/api/departments?q=engineering&page=1&limit=10"
 
 curl -i -b cookies.txt -c cookies.txt -X POST http://localhost:8080/api/auth/refresh
 

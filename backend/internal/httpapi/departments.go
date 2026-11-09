@@ -55,10 +55,16 @@ func deptName(w http.ResponseWriter, r *http.Request) (string, bool) {
 }
 
 func (s *server) listDepartments(w http.ResponseWriter, r *http.Request) {
+	q, msg := readPage(r)
+	if msg != "" {
+		writeError(w, http.StatusBadRequest, msg)
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	depts, err := s.store.Departments(ctx)
+	depts, total, err := s.store.Departments(ctx, q.Query, q.Limit, q.Offset)
 	if err != nil {
 		s.logger.Error("list departments", "error", err)
 		writeError(w, http.StatusInternalServerError, "Gagal memuat departemen.")
@@ -69,7 +75,12 @@ func (s *server) listDepartments(w http.ResponseWriter, r *http.Request) {
 	for _, d := range depts {
 		list = append(list, toDept(d))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"departments": list})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"departments": list,
+		"total":       total,
+		"page":        q.Page,
+		"limit":       q.Limit,
+	})
 }
 
 func (s *server) createDepartment(w http.ResponseWriter, r *http.Request) {

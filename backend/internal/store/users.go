@@ -32,14 +32,31 @@ func (s *Store) UserByID(ctx context.Context, id int64) (User, error) {
 	`, id))
 }
 
-func (s *Store) Users(ctx context.Context) ([]User, error) {
+const userMatch = `
+	$1 = ''
+	OR position($1 in lower(username)) > 0
+	OR position($1 in lower(role)) > 0
+	OR position($1 in id::text) > 0`
+
+func (s *Store) Users(ctx context.Context, query string, limit, offset int) ([]User, int, error) {
+	var total int
+	err := s.pool.QueryRow(ctx, `
+		SELECT COUNT(*)::int
+		FROM users
+		WHERE `+userMatch, query).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
 	rows, err := s.pool.Query(ctx, `
 		SELECT id, username, password_hash, role
 		FROM users
+		WHERE `+userMatch+`
 		ORDER BY id
-	`)
+		LIMIT $2 OFFSET $3
+	`, query, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -47,11 +64,11 @@ func (s *Store) Users(ctx context.Context) ([]User, error) {
 	for rows.Next() {
 		user, err := scanUser(rows)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		users = append(users, user)
 	}
-	return users, rows.Err()
+	return users, total, rows.Err()
 }
 
 func (s *Store) CreateUser(ctx context.Context, username, hash, role string) (User, error) {
