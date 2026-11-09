@@ -106,3 +106,40 @@ export async function updateRole(id: number, role: Role): Promise<User> {
 export async function removeUser(id: number): Promise<void> {
   await request<void>(`/users/${id}`, { method: 'DELETE' })
 }
+
+export type Employee = {
+  id: number
+  name: string
+}
+
+export type Department = {
+  id: number
+  name: string
+  employee_count: number
+  employees: Employee[]
+}
+
+export async function listDepts(): Promise<Department[]> {
+  const { departments } = await request<{ departments: Department[] }>('/departments')
+  return departments
+}
+
+export async function addDept(name: string): Promise<Department> {
+  const { department } = await request<{ department: Department }>('/departments', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  })
+  return department
+}
+
+export async function updateDept(id: number, name: string): Promise<Department> {
+  const { department } = await request<{ department: Department }>(`/departments/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ name }),
+  })
+  return department
+}
+
+export async function removeDept(id: number): Promise<void> {
+  await request<void>(`/departments/${id}`, { method: 'DELETE' })
+}

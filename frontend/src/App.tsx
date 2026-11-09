@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { me, signOut } from './api'
 import type { User } from './api'
+import AppLayout from './components/AppLayout'
 import LoginPage from './pages/LoginPage'
-import HomePage from './pages/HomePage'
+import DepartmentsPage from './pages/DepartmentsPage'
+import UsersPage from './pages/UsersPage'
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null)
@@ -54,5 +57,16 @@ export default function App() {
     return <LoginPage onLogin={setUser} />
   }
 
-  return <HomePage user={user} onLogout={logout} />
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route element={<AppLayout user={user} onLogout={logout} />}>
+          <Route index element={<Navigate to="/departments" replace />} />
+          <Route path="departments" element={<DepartmentsPage />} />
+          <Route path="users" element={<UsersPage />} />
+          <Route path="*" element={<Navigate to="/departments" replace />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  )
 }
