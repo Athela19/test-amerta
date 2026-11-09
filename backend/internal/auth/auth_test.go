@@ -18,6 +18,36 @@ func TestPassword(t *testing.T) {
 	}
 }
 
+// Hash di bawah disalin dari db/init/001_init.sql. Gagal = password demo di
+// README/docs tidak lagi cocok dengan seed.
+func TestSeedPasswords(t *testing.T) {
+	cases := []struct {
+		username string
+		password string
+		hash     string
+	}{
+		{
+			username: "admin",
+			password: "admin123",
+			hash:     "$2a$12$5chNCxFg0zvnneYqbXd8w.9hRhT48ekpq0WFHIXvQOaBOuamq/3c6",
+		},
+		{
+			username: "user",
+			password: "user123",
+			hash:     "$2a$12$zrJxSpywBOzUX.y3sqUntOIXS4jv9kSrs65VQq0SWS6zs9qvdOXHG",
+		},
+	}
+
+	for _, tc := range cases {
+		if !Verify(tc.hash, tc.password) {
+			t.Fatalf("seed password for %s no longer matches db/init/001_init.sql", tc.username)
+		}
+		if Verify(tc.hash, "wrong") {
+			t.Fatalf("seed hash for %s accepted a wrong password", tc.username)
+		}
+	}
+}
+
 func TestIssueAndParse(t *testing.T) {
 	m := New("test-secret-at-least-32-characters", time.Minute)
 
