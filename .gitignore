@@ -1,0 +1,13 @@
+frontend/node_modules/
+frontend/dist/
+backend/bin/
+backend/tmp/
+frontend/.env.local
+*.exe
+*.test
+*.out
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.log
