@@ -47,6 +47,10 @@ func NewRouter(d Deps) http.Handler {
 	mux.HandleFunc("POST /api/auth/refresh", s.refresh)
 	mux.HandleFunc("POST /api/auth/logout", s.logout)
 	mux.HandleFunc("GET /api/auth/me", s.requireAuth(s.me))
+	mux.HandleFunc("GET /api/users", s.requireAdmin(s.listUsers))
+	mux.HandleFunc("POST /api/users", s.requireAdmin(s.createUser))
+	mux.HandleFunc("PATCH /api/users/{id}", s.requireAdmin(s.updateRole))
+	mux.HandleFunc("DELETE /api/users/{id}", s.requireAdmin(s.deleteUser))
 	mux.HandleFunc("GET /api/health", s.health)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "Rute tidak ditemukan.")

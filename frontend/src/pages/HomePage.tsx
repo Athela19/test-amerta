@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { User } from '../api'
 import BrandLogo from '../components/BrandLogo'
+import UserManager from '../components/UserManager'
 
 type Props = {
   user: User
@@ -27,7 +28,7 @@ export default function HomePage({ user, onLogout }: Props) {
         <BrandLogo className="topbar-brand" />
         <div className="topbar-user">
           <div>
-            <strong>{user.email}</strong>
+            <strong>{user.username}</strong>
             <span>{role}</span>
           </div>
           <button className="secondary" type="button" onClick={logout} disabled={loading}>
@@ -51,8 +52,8 @@ export default function HomePage({ user, onLogout }: Props) {
 
           <dl className="profile">
             <div>
-              <dt>Email</dt>
-              <dd>{user.email}</dd>
+              <dt>Username</dt>
+              <dd>{user.username}</dd>
             </div>
             <div>
               <dt>Peran</dt>
@@ -60,15 +61,15 @@ export default function HomePage({ user, onLogout }: Props) {
             </div>
           </dl>
 
-          <div className={admin ? 'panel admin' : 'panel'}>
-            <strong>{admin ? 'Akses administrator' : 'Akses pengguna'}</strong>
-            <p>
-              {admin
-                ? 'Akun ini dapat mengelola data dan pengguna aplikasi.'
-                : 'Akun ini dapat melihat data yang diizinkan.'}
-            </p>
-          </div>
+          {!admin && (
+            <div className="panel">
+              <strong>Akses pengguna</strong>
+              <p>Akun ini dapat melihat data yang diizinkan.</p>
+            </div>
+          )}
         </section>
+
+        {admin && <UserManager current={user} />}
       </main>
     </>
   )

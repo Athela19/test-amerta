@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -20,40 +19,40 @@ const (
 )
 
 type loginInput struct {
-	Email    string `json:"email"`
+	Username string `json:"username"`
 	Password string `json:"password"`
 }
 
 type userView struct {
-	ID    int64  `json:"id"`
-	Email string `json:"email"`
-	Role  string `json:"role"`
+	ID       int64  `json:"id"`
+	Username string `json:"username"`
+	Role     string `json:"role"`
 }
 
 func toView(user store.User) userView {
-	return userView{ID: user.ID, Email: user.Email, Role: user.Role}
+	return userView{ID: user.ID, Username: user.Username, Role: user.Role}
 }
 
 func (s *server) login(w http.ResponseWriter, r *http.Request) {
 	var in loginInput
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&in); err != nil {
+	if err := decode(w, r, &in); err != nil {
 		writeError(w, http.StatusBadRequest, "Permintaan tidak valid.")
 		return
 	}
 
-	email := strings.ToLower(strings.TrimSpace(in.Email))
-	if email == "" || in.Password == "" {
-		writeError(w, http.StatusUnprocessableEntity, "Email dan kata sandi wajib diisi.")
+	username := strings.ToLower(strings.TrimSpace(in.Username))
+	if username == "" || in.Password == "" {
+		writeError(w, http.StatusUnprocessableEntity, "Username dan kata sandi wajib diisi.")
 		return
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	user, err := s.store.UserByEmail(ctx, email)
+	user, err := s.store.UserByUsername(ctx, username)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			writeError(w, http.StatusUnauthorized, "Email atau kata sandi salah.")
+			writeError(w, http.StatusUnauthorized, "Username atau kata sandi salah.")
 			return
 		}
 		s.logger.Error("lookup user", "error", err)
@@ -62,11 +61,11 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !auth.Verify(user.PasswordHash, in.Password) {
-		writeError(w, http.StatusUnauthorized, "Email atau kata sandi salah.")
+		writeError(w, http.StatusUnauthorized, "Username atau kata sandi salah.")
 		return
 	}
 
-	access, err := s.tokens.Issue(user.ID, user.Role)
+	access, err := s.tokens.Issue(user.ID)
 	if err != nil {
 		s.logger.Error("issue access", "error", err)
 		writeError(w, http.StatusInternalServerError, "Gagal membuat sesi.")
@@ -120,7 +119,7 @@ func (s *server) refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	access, err := s.tokens.Issue(user.ID, user.Role)
+	access, err := s.tokens.Issue(user.ID)
 	if err != nil {
 		s.logger.Error("issue access", "error", err)
 		writeError(w, http.StatusInternalServerError, "Gagal memperbarui sesi.")
@@ -145,36 +144,20 @@ func (s *server) logout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) me(w http.ResponseWriter, r *http.Request) {
-	claims, ok := r.Context().Value(claimsKey{}).(*auth.Claims)
+	user, ok := currentUser(r)
 	if !ok {
 		writeError(w, http.StatusUnauthorized, "Akses ditolak.")
 		return
 	}
-
-	id, err := strconv.ParseInt(claims.Subject, 10, 64)
-	if err != nil {
-		writeError(w, http.StatusUnauthorized, "Akses ditolak.")
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-
-	user, err := s.store.UserByID(ctx, id)
-	if err != nil {
-		if errors.Is(err, store.ErrNotFound) {
-			writeError(w, http.StatusUnauthorized, "Akses ditolak.")
-			return
-		}
-		s.logger.Error("lookup user", "error", err)
-		writeError(w, http.StatusInternalServerError, "Gagal memuat sesi.")
-		return
-	}
-
 	writeJSON(w, http.StatusOK, map[string]any{"user": toView(user)})
 }
 
-type claimsKey struct{}
+type userKey struct{}
+
+func currentUser(r *http.Request) (store.User, bool) {
+	user, ok := r.Context().Value(userKey{}).(store.User)
+	return user, ok
+}
 
 func (s *server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -190,8 +173,39 @@ func (s *server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		next(w, r.WithContext(context.WithValue(r.Context(), claimsKey{}, claims)))
+		id, err := strconv.ParseInt(claims.Subject, 10, 64)
+		if err != nil {
+			writeError(w, http.StatusUnauthorized, "Akses ditolak.")
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		user, err := s.store.UserByID(ctx, id)
+		if err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				writeError(w, http.StatusUnauthorized, "Akses ditolak.")
+				return
+			}
+			s.logger.Error("lookup user", "error", err)
+			writeError(w, http.StatusInternalServerError, "Gagal memuat sesi.")
+			return
+		}
+
+		next(w, r.WithContext(context.WithValue(r.Context(), userKey{}, user)))
 	}
+}
+
+func (s *server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
+	return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
+		user, ok := currentUser(r)
+		if !ok || user.Role != "admin" {
+			writeError(w, http.StatusForbidden, "Akses ditolak.")
+			return
+		}
+		next(w, r)
+	})
 }
 
 func (s *server) setCookies(w http.ResponseWriter, access, refresh string) {

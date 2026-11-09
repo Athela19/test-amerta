@@ -9,7 +9,7 @@ type Props = {
 }
 
 export default function LoginPage({ onLogin }: Props) {
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -20,7 +20,7 @@ export default function LoginPage({ onLogin }: Props) {
     setLoading(true)
 
     try {
-      onLogin(await login(email.trim(), password))
+      onLogin(await login(username.trim(), password))
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Gagal masuk.')
     } finally {
@@ -44,17 +44,17 @@ export default function LoginPage({ onLogin }: Props) {
 
         <form className="auth-form" onSubmit={submit}>
           <div className="field">
-            <label htmlFor="email">
-              Email <span aria-hidden="true">*</span>
+            <label htmlFor="username">
+              Username <span aria-hidden="true">*</span>
             </label>
             <input
-              id="email"
-              type="email"
-              autoComplete="email"
-              placeholder="nama@amerta.local"
+              id="username"
+              type="text"
+              autoComplete="username"
+              placeholder="Masukkan username"
               required
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
               disabled={loading}
             />
           </div>
@@ -82,7 +82,7 @@ export default function LoginPage({ onLogin }: Props) {
         </form>
 
         <p className="auth-help">
-          Belum punya akses? <a href="mailto:admin@amerta.local">Hubungi administrator</a>
+          Belum punya akses? <strong>Hubungi administrator</strong>
         </p>
       </section>
     </main>

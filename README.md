@@ -1,8 +1,8 @@
 # Amerta Starter — React + Go (net/http) + PostgreSQL
 
 Starter full-stack yang mengikuti `docker-compose.yml` di root project, dengan
-fitur pertama berupa **login** memakai bcrypt, role `admin`/`user`, JWT access
-token, dan refresh token yang disimpan di cookie.
+fitur pertama berupa **login memakai username** + bcrypt, role `admin`/`user`,
+JWT access token, refresh token di cookie, dan manajemen pengguna khusus admin.
 
 | Service    | Teknologi                                    | Port host |
 | ---------- | -------------------------------------------- | --------- |
@@ -19,23 +19,23 @@ library Go. `pgx/v5` hanya dipakai sebagai driver PostgreSQL.
 .
 ├── docker-compose.yml
 ├── db/
-│   └── init/001_init.sql       # tabel users + refresh_tokens, seed akun demo
+│   └── init/001_init.sql       # tabel users + refresh_tokens, seed admin & user
 ├── backend/
 │   ├── cmd/api/main.go         # entrypoint
 │   ├── internal/
 │   │   ├── auth/               # bcrypt, JWT, refresh token
 │   │   ├── config/             # konfigurasi env
 │   │   ├── database/           # koneksi PostgreSQL
-│   │   ├── httpapi/            # router, middleware, handler auth
+│   │   ├── httpapi/            # router, middleware, handler auth & users
 │   │   └── store/              # query users & refresh_tokens
 │   ├── .env                    # environment untuk container
 │   └── Dockerfile
 └── frontend/
     ├── public/                 # letakkan logo resmi sebagai logo.png
     ├── src/
-    │   ├── components/         # BrandLogo
+    │   ├── components/         # BrandLogo, UserManager
     │   ├── pages/              # LoginPage, HomePage
-    │   ├── api.ts              # client auth + auto refresh
+    │   ├── api.ts              # client auth, auto refresh, manajemen user
     │   └── App.tsx
     ├── nginx.conf              # serve SPA + proxy /api ke backend
     └── Dockerfile
@@ -56,6 +56,14 @@ Lalu jalankan:
 docker compose up --build
 ```
 
+Jika Docker hanya terpasang di WSL, jalankan Compose dari Windows memakai `wsl --cd`:
+
+```powershell
+wsl --cd "D:\path\ke\test-amerta" docker compose up --build
+```
+
+Perintah `down`, `down -v`, dan `ps` juga bisa dijalankan dengan pola yang sama.
+
 Buka:
 
 - Frontend: <http://localhost:3000>
@@ -70,17 +78,22 @@ docker compose down -v       # container + volume database dihapus
 ```
 
 > **Penting:** schema dan akun demo hanya dibuat saat volume `pgdata` pertama
-> kali dibuat. Kalau sebelumnya sudah pernah menjalankan versi dengan tabel
-> `items`, jalankan `docker compose down -v` agar schema auth dibuat ulang.
+> kali dibuat. Kalau sebelumnya sudah pernah menjalankan versi dengan schema
+> lama, jalankan `docker compose down -v` agar schema auth dibuat ulang.
 
 ## Akun demo
 
-| Role  | Email               | Password   |
-| ----- | ------------------- | ---------- |
-| admin | `admin@amerta.local` | `Admin123!` |
-| user  | `user@amerta.local`  | `User123!`  |
+| Role  | Username | Password   |
+| ----- | -------- | ---------- |
+| admin | `admin`  | `admin123` |
+| user  | `user`   | `user123`  |
 
-Akun ini hanya untuk development. Ganti atau hapus sebelum deploy.
+Akun ini hanya untuk development. Ganti atau hapus sebelum deploy. Login hanya
+memakai **username**, bukan email.
+
+Akun `admin` dapat membuka **Manajemen pengguna** di halaman Beranda untuk
+menambah pengguna, mengganti role, dan menghapus pengguna. Admin tidak dapat
+mengubah role atau menghapus akunnya sendiri agar selalu ada administrator aktif.
 
 Logo resmi diletakkan di `frontend/public/logo.png`. Selama file belum ada, UI
 memakai wordmark sementara. Setelah login, halaman Beranda ringkas ditampilkan;
@@ -101,18 +114,24 @@ halaman departemen dan karyawan akan ditambahkan pada fitur berikutnya.
    token baru dibuat dalam satu transaksi.
 4. `POST /api/auth/logout` mencabut refresh token dan menghapus kedua cookie.
 
-Role (`admin`/`user`) disimpan di kolom `users.role` dan di claim `role` pada
-JWT. Halaman Beranda menampilkan area berbeda berdasarkan role.
+Role (`admin`/`user`) disimpan di kolom `users.role`. JWT hanya membawa
+identitas pengguna; role dibaca ulang dari database pada setiap request, jadi
+perubahan role langsung berlaku tanpa menunggu access token kedaluwarsa. Halaman
+Beranda menampilkan area berbeda berdasarkan role.
 
 ## Endpoint API
 
-| Method | Path                | Auth   | Keterangan                          |
-| ------ | ------------------- | ------ | ----------------------------------- |
-| POST   | `/api/auth/login`   | publik | Login, set cookie access + refresh  |
+| Method | Path                | Auth   | Keterangan                            |
+| ------ | ------------------- | ------ | ------------------------------------- |
+| POST   | `/api/auth/login`   | publik | Login dengan username, set cookie     |
 | POST   | `/api/auth/refresh` | cookie | Rotasi refresh token, set cookie baru |
-| POST   | `/api/auth/logout`  | cookie | Cabut refresh token, hapus cookie   |
-| GET    | `/api/auth/me`      | JWT    | Profil user yang sedang login       |
-| GET    | `/api/health`       | publik | Status API + koneksi database       |
+| POST   | `/api/auth/logout`  | cookie | Cabut refresh token, hapus cookie     |
+| GET    | `/api/auth/me`      | JWT    | Profil user yang sedang login         |
+| GET    | `/api/users`        | admin  | Daftar pengguna                       |
+| POST   | `/api/users`        | admin  | Tambah pengguna                       |
+| PATCH  | `/api/users/{id}`   | admin  | Ubah role pengguna                    |
+| DELETE | `/api/users/{id}`   | admin  | Hapus pengguna                        |
+| GET    | `/api/health`       | publik | Status API + koneksi database         |
 
 Contoh dengan `curl`:
 
@@ -121,10 +140,19 @@ Contoh dengan `curl`:
 curl -i -c cookies.txt \
   -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@amerta.local","password":"Admin123!"}'
+  -d '{"username":"admin","password":"admin123"}'
 
 # profil
 curl -b cookies.txt http://localhost:8080/api/auth/me
+
+# daftar pengguna (khusus admin)
+curl -b cookies.txt http://localhost:8080/api/users
+
+# tambah pengguna (khusus admin)
+curl -i -b cookies.txt \
+  -X POST http://localhost:8080/api/users \
+  -H "Content-Type: application/json" \
+  -d '{"username":"operator","password":"operator123","role":"user"}'
 
 # refresh (cookie lama diputar)
 curl -i -b cookies.txt -c cookies.txt -X POST http://localhost:8080/api/auth/refresh
@@ -189,6 +217,8 @@ curl -i -b cookies.txt -c cookies.txt -X POST http://localhost:8080/api/auth/log
 - Set `COOKIE_SECURE=true` saat aplikasi berjalan di HTTPS.
 - Access token berumur pendek; refresh token disimpan sebagai hash dan
   dirotasi setiap kali dipakai.
+- Otorisasi admin memeriksa role terbaru di database, sehingga akun yang
+  dihapus atau diturunkan role-nya langsung kehilangan akses.
 - `SameSite=Lax` membantu mitigasi CSRF. Untuk kebutuhan lebih ketat,
   tambahkan CSRF token dan rate limiting pada endpoint login.
 - Schema di `db/init` hanya untuk bootstrap. Untuk perubahan schema

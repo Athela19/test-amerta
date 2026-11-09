@@ -5,13 +5,15 @@ import (
 	"time"
 )
 
-const adminHash = "$2a$12$LwrMfRUySqihL.XHT663IugmqeCCbzhm.pOBaaXMPaj8us/LixRJe"
-
-func TestVerify(t *testing.T) {
-	if !Verify(adminHash, "Admin123!") {
+func TestPassword(t *testing.T) {
+	hash, err := Hash("admin123")
+	if err != nil {
+		t.Fatalf("Hash() error = %v", err)
+	}
+	if !Verify(hash, "admin123") {
 		t.Fatal("Verify() = false for valid password")
 	}
-	if Verify(adminHash, "wrong") {
+	if Verify(hash, "wrong") {
 		t.Fatal("Verify() = true for wrong password")
 	}
 }
@@ -19,7 +21,7 @@ func TestVerify(t *testing.T) {
 func TestIssueAndParse(t *testing.T) {
 	m := New("test-secret-at-least-32-characters", time.Minute)
 
-	token, err := m.Issue(42, "admin")
+	token, err := m.Issue(42)
 	if err != nil {
 		t.Fatalf("Issue() error = %v", err)
 	}
@@ -28,13 +30,13 @@ func TestIssueAndParse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
 	}
-	if claims.Subject != "42" || claims.Role != "admin" {
-		t.Fatalf("claims = %+v", claims)
+	if claims.Subject != "42" {
+		t.Fatalf("Subject = %q, want %q", claims.Subject, "42")
 	}
 }
 
 func TestWrongSecret(t *testing.T) {
-	token, err := New("first-secret-at-least-32-characters", time.Minute).Issue(1, "user")
+	token, err := New("first-secret-at-least-32-characters", time.Minute).Issue(1)
 	if err != nil {
 		t.Fatalf("Issue() error = %v", err)
 	}
@@ -47,7 +49,7 @@ func TestWrongSecret(t *testing.T) {
 func TestExpired(t *testing.T) {
 	m := New("test-secret-at-least-32-characters", -time.Minute)
 
-	token, err := m.Issue(1, "user")
+	token, err := m.Issue(1)
 	if err != nil {
 		t.Fatalf("Issue() error = %v", err)
 	}

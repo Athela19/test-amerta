@@ -42,7 +42,7 @@ func (s *Store) RotateRefresh(ctx context.Context, current, next string, expires
 	}
 
 	user, err := scanUser(tx.QueryRow(ctx, `
-		SELECT id, email, password_hash, role
+		SELECT id, username, password_hash, role
 		FROM users
 		WHERE id = $1
 	`, id))

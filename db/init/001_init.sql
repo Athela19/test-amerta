@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS users (
     id            BIGSERIAL PRIMARY KEY,
-    email         TEXT NOT NULL UNIQUE CHECK (email = lower(email)),
+    username      TEXT NOT NULL UNIQUE CHECK (username = lower(username)),
     password_hash TEXT NOT NULL,
     role          TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user'))
 );
@@ -14,8 +14,8 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 
 CREATE INDEX IF NOT EXISTS refresh_tokens_user_idx ON refresh_tokens (user_id);
 
-INSERT INTO users (email, password_hash, role)
+INSERT INTO users (username, password_hash, role)
 VALUES
-    ('admin@amerta.local', '$2a$12$LwrMfRUySqihL.XHT663IugmqeCCbzhm.pOBaaXMPaj8us/LixRJe', 'admin'),
-    ('user@amerta.local', '$2a$12$3.ClLVysPTx8k4tT/qFYrecfrkkkFA7/WgIl9p3DemZUyfwTMd6Ya', 'user')
-ON CONFLICT (email) DO NOTHING;
+    ('admin', '$2a$12$5chNCxFg0zvnneYqbXd8w.9hRhT48ekpq0WFHIXvQOaBOuamq/3c6', 'admin'),
+    ('user', '$2a$12$zrJxSpywBOzUX.y3sqUntOIXS4jv9kSrs65VQq0SWS6zs9qvdOXHG', 'user')
+ON CONFLICT (username) DO NOTHING;

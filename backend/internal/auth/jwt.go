@@ -9,11 +9,6 @@ import (
 
 const issuer = "amerta-api"
 
-type Claims struct {
-	Role string `json:"role"`
-	jwt.RegisteredClaims
-}
-
 type Manager struct {
 	key []byte
 	ttl time.Duration
@@ -23,21 +18,18 @@ func New(secret string, ttl time.Duration) *Manager {
 	return &Manager{key: []byte(secret), ttl: ttl}
 }
 
-func (m *Manager) Issue(id int64, role string) (string, error) {
+func (m *Manager) Issue(id int64) (string, error) {
 	now := time.Now()
-	return jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
-		Role: role,
-		RegisteredClaims: jwt.RegisteredClaims{
-			Subject:   strconv.FormatInt(id, 10),
-			Issuer:    issuer,
-			IssuedAt:  jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(now.Add(m.ttl)),
-		},
+	return jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{
+		Subject:   strconv.FormatInt(id, 10),
+		Issuer:    issuer,
+		IssuedAt:  jwt.NewNumericDate(now),
+		ExpiresAt: jwt.NewNumericDate(now.Add(m.ttl)),
 	}).SignedString(m.key)
 }
 
-func (m *Manager) Parse(raw string) (*Claims, error) {
-	claims := &Claims{}
+func (m *Manager) Parse(raw string) (*jwt.RegisteredClaims, error) {
+	claims := &jwt.RegisteredClaims{}
 	_, err := jwt.ParseWithClaims(
 		raw,
 		claims,

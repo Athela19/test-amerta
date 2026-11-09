@@ -2,11 +2,17 @@ export type Role = 'admin' | 'user'
 
 export type User = {
   id: number
-  email: string
+  username: string
   role: Role
 }
 
-type Auth = {
+export type NewUser = {
+  username: string
+  password: string
+  role: Role
+}
+
+type UserResponse = {
   user: User
 }
 
@@ -55,12 +61,12 @@ async function request<T>(path: string, init: RequestInit = {}, retry = true): P
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T)
 }
 
-export async function login(email: string, password: string): Promise<User> {
-  const { user } = await request<Auth>(
+export async function login(username: string, password: string): Promise<User> {
+  const { user } = await request<UserResponse>(
     '/auth/login',
     {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ username, password }),
     },
     false,
   )
@@ -68,10 +74,35 @@ export async function login(email: string, password: string): Promise<User> {
 }
 
 export async function me(): Promise<User> {
-  const { user } = await request<Auth>('/auth/me')
+  const { user } = await request<UserResponse>('/auth/me')
   return user
 }
 
 export async function signOut(): Promise<void> {
   await request<void>('/auth/logout', { method: 'POST' }, false)
+}
+
+export async function listUsers(): Promise<User[]> {
+  const { users } = await request<{ users: User[] }>('/users')
+  return users
+}
+
+export async function addUser(input: NewUser): Promise<User> {
+  const { user } = await request<UserResponse>('/users', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+  return user
+}
+
+export async function updateRole(id: number, role: Role): Promise<User> {
+  const { user } = await request<UserResponse>(`/users/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ role }),
+  })
+  return user
+}
+
+export async function removeUser(id: number): Promise<void> {
+  await request<void>(`/users/${id}`, { method: 'DELETE' })
 }
